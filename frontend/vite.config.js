@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    allowedHosts: ['some-paths-stay.loca.lt'],
     proxy: {
       '/api': {
         target: 'http://localhost:4000',
