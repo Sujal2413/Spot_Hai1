@@ -48,22 +48,36 @@ export default function Payment() {
       script.onload = () => {
         // 3. Initialize Razorpay Modal
         const options = {
-          key: 'rzp_test_dummy_key', // Uses mocked test key for the UI
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_dummy_key',
           amount: booking.total_amount * 100, // paise
           currency: 'INR',
           name: 'SpotHai Premium',
           description: `Parking at ${booking.spot_name}`,
           order_id: order.id,
-          handler: function (response) {
-            // Frontend validation representation
-            // Note: The actual Webhook listener updates the database backend.
-            setSuccess(true);
-            setPaymentData({
-              transaction_id: response.razorpay_payment_id || order.id,
-              amount: booking.total_amount,
-              method: 'RAZORPAY Checkout'
-            });
-            toast.success('Payment verified & booked successfully!');
+          handler: async function (response) {
+            setProcessing(true);
+            try {
+              // 4. Verify Payment on Server
+              const verifyRes = await paymentsAPI.verifyPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              });
+
+              if (verifyRes.data.status === 'success') {
+                setSuccess(true);
+                setPaymentData({
+                  transaction_id: response.razorpay_payment_id,
+                  amount: booking.total_amount,
+                  method: 'RAZORPAY Checkout'
+                });
+                toast.success('Payment verified & booked successfully!');
+              }
+            } catch (err) {
+              toast.error(err.message || 'Payment verification failed');
+            } finally {
+              setProcessing(false);
+            }
           },
           prefill: {
             name: "SpotHai User",

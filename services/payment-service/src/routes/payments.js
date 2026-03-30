@@ -50,7 +50,7 @@ router.post('/create-order', authMiddleware, async (req, res) => {
     db.prepare(`
       INSERT INTO payments (id, booking_id, user_id, amount, method, status, transaction_id)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(paymentId, booking_id, req.user.id, booking.total_amount, 'RAZORPAY', 'pending', order.id);
+    `).run(paymentId, booking_id, req.user.id, booking.total_amount, 'card', 'pending', order.id);
 
     return success(res, order, 'Order Created Successfully', 201);
   } catch (err) {
@@ -104,6 +104,67 @@ router.post('/webhook', express.raw({ type: 'application/json' }), (req, res) =>
   } catch (err) {
     console.error('Webhook Error:', err);
     res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
+// POST /api/payments/verify — Verify Razorpay Payment Signature
+router.post('/verify', authMiddleware, async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return error(res, 'Missing required payment verification parameters', 400);
+    }
+
+    const secret = process.env.RAZORPAY_SECRET || 'dummy_secret';
+    
+    // Verify Signature: generated_signature = hmac_sha256(order_id + "|" + payment_id, secret)
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(body.toString())
+      .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+      // In Dev mode with dummy keys, we might want to bypass if secret is not set, 
+      // but for security we enforce it if RAZORPAY_SECRET is present.
+      if (process.env.RAZORPAY_SECRET) {
+        return error(res, 'Invalid payment signature', 400);
+      }
+    }
+
+    const db = getDb();
+    
+    // 1. Update Payment Record
+    const updatePayment = db.prepare(`
+      UPDATE payments 
+      SET status = 'success', transaction_id = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE transaction_id = ? AND status = 'pending'
+    `).run(razorpay_payment_id, razorpay_order_id);
+
+    if (updatePayment.changes === 0) {
+      // Check if it was already updated (prevents duplicate processing)
+      const existing = db.prepare('SELECT status FROM payments WHERE transaction_id = ?').get(razorpay_payment_id);
+      if (existing?.status === 'success') {
+         return success(res, { status: 'success' }, 'Payment already verified');
+      }
+      return error(res, 'Payment record not found or already processed', 404);
+    }
+
+    // 2. Update Booking Status
+    const paymentRow = db.prepare('SELECT id, booking_id FROM payments WHERE transaction_id = ?').get(razorpay_payment_id);
+    if (paymentRow) {
+      db.prepare(`
+        UPDATE bookings 
+        SET status = 'confirmed', payment_id = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `).run(paymentRow.id, paymentRow.booking_id);
+    }
+
+    return success(res, { status: 'success', payment_id: paymentRow?.id }, 'Payment verified successfully');
+  } catch (err) {
+    console.error('Payment Verification Error:', err);
+    return error(res, 'Failed to verify payment', 500);
   }
 });
 

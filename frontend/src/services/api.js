@@ -55,6 +55,7 @@ export const bookingsAPI = {
 export const paymentsAPI = {
   process: (data) => request('/payments', { method: 'POST', body: JSON.stringify(data) }),
   createRazorpayOrder: (data) => request('/payments/create-order', { method: 'POST', body: JSON.stringify(data) }),
+  verifyPayment: (data) => request('/payments/verify', { method: 'POST', body: JSON.stringify(data) }),
   getHistory: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return request(`/payments?${query}`);
