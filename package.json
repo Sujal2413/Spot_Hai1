@@ -1,0 +1,30 @@
+{
+  "name": "spothai",
+  "version": "1.0.0",
+  "description": "SpotHai - Smart Parking Platform",
+  "private": true,
+  "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "dev": "concurrently --names \"GATEWAY,USER,BOOKING,PAYMENT,OPERATOR,FRONTEND\" --prefix-colors \"yellow,blue,green,magenta,cyan,white\" \"npm run dev:gateway\" \"npm run dev:user\" \"npm run dev:booking\" \"npm run dev:payment\" \"npm run dev:operator\" \"npm run dev:frontend\"",
+    "dev:gateway": "cd gateway && node src/index.js",
+    "dev:user": "cd services/user-service && node src/index.js",
+    "dev:booking": "cd services/booking-service && node src/index.js",
+    "dev:payment": "cd services/payment-service && node src/index.js",
+    "dev:operator": "cd services/operator-service && node src/index.js",
+    "dev:frontend": "cd frontend && npm run dev",
+    "seed": "node database/seed.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.8.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.10.1",
+    "nodemailer": "^8.0.4",
+    "uuid": "^13.0.0"
+  }
+}
